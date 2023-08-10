@@ -1,5 +1,5 @@
 import { ethers } from "ethers";
-import {
+import Safe, {
   EthersAdapter,
   SafeFactory,
   SafeAccountConfig,
@@ -22,6 +22,16 @@ async function main() {
     signerOrProvider: owner1,
   });
 
+  const ethAdapterOwner2 = new EthersAdapter({
+    ethers,
+    signerOrProvider: owner2,
+  });
+
+  const ethAdapterOwner3 = new EthersAdapter({
+    ethers,
+    signerOrProvider: owner3,
+  });
+
   const chainId = await ethAdapterOwner1.getChainId();
   const contractNetworks: ContractNetworksConfig = {
     [chainId]: {
@@ -35,13 +45,14 @@ async function main() {
       simulateTxAccessorAddress: "0x59AD6735bCd8152B84860Cb256dD9e96b85F69Da",
     },
   };
+
   console.log("Creating safeFactory...");
   const safeFactory = await SafeFactory.create({
     ethAdapter: ethAdapterOwner1,
-    isL1SafeMasterCopy: true,
     contractNetworks,
   });
 
+  console.log("Deploying safe Account...");
   const safeAccountConfig: SafeAccountConfig = {
     owners: [
       await owner1.getAddress(),
@@ -51,27 +62,89 @@ async function main() {
     threshold: 2,
   };
 
-  console.log("Deploying safe...");
   const safeSdkOwner1 = await safeFactory.deploySafe({ safeAccountConfig });
   const safeAddress = await safeSdkOwner1.getAddress();
   console.log("Safe Address:", safeAddress);
 
-//   const amountIn = ethers.utils.parseEther("0.01").toHexString();
-//   console.log(`Sending ${amountIn} eth to safe wallet...`);
-//   const txn = await owner2.sendTransaction({
-//     to: safeAddress,
-//     value: amountIn,
-//   });
+  const amountIn = ethers.utils.parseEther("0.01").toString();
+  console.log(`Sending ${amountIn} eth to safe wallet...`);
+  const tx1 = await owner2.sendTransaction({
+    to: safeAddress,
+    value: amountIn,
+  });
+  await tx1.wait();
+  const safeBalance = await safeSdkOwner1.getBalance();
+  console.log(
+    `Balance of the safe is ${ethers.utils.formatEther(safeBalance)} ETH`
+  );
 
-//   const dest = "0x1d23b8Fa724Ae7cF0DE02723B78ef3aaF00407d1";
-//   const amountOut = ethers.utils.parseEther("0.0005").toString();
+  console.log("Owner1 Creating Transaction...");
+  const amountOut = ethers.utils.parseEther("0.005").toString();
 
-//   const safeTransactionData: SafeTransactionDataPartial = {
-//     to: dest,
-//     value: amountOut,
-//     data: "0x",
-//   };
-//   const safeTransaction = await safeSdkOwner1.createTransaction({safeTransactionData});
+  const safeTransactionData: SafeTransactionDataPartial = {
+    to: await owner3.getAddress(),
+    value: amountOut,
+    data: "0x",
+  };
+  const safeTransaction = await safeSdkOwner1.createTransaction({
+    safeTransactionData,
+  });
+
+  console.log("Owner1 Approve Transaction...");
+  const safeTxnHash = await safeSdkOwner1.getTransactionHash(safeTransaction);
+  const approveTxnOwner1Resp = await safeSdkOwner1.approveTransactionHash(
+    safeTxnHash
+  );
+  await approveTxnOwner1Resp.transactionResponse?.wait();
+
+  console.log("Owner2 Approve Transaction...");
+  const safeSdkOwner2 = await Safe.create({
+    ethAdapter: ethAdapterOwner2,
+    safeAddress,
+    contractNetworks,
+  });
+
+  const safeTransactionOwner2 = await safeSdkOwner2.createTransaction({
+    safeTransactionData,
+  });
+
+  const safeTxnHashOwner2 = await safeSdkOwner2.getTransactionHash(
+    safeTransactionOwner2
+  );
+  const approveTxnOwner2Resp = await safeSdkOwner2.approveTransactionHash(
+    safeTxnHashOwner2
+  );
+  await approveTxnOwner2Resp.transactionResponse?.wait();
+
+  console.log("Owner3 Approve Transaction...");
+  const safeSdkOwner3 = await Safe.create({
+    ethAdapter: ethAdapterOwner3,
+    safeAddress,
+    contractNetworks,
+  });
+
+  const safeTransactionOwner3 = await safeSdkOwner3.createTransaction({
+    safeTransactionData,
+  });
+
+  const safeTxnHashOwner3 = await safeSdkOwner3.getTransactionHash(
+    safeTransactionOwner3
+  );
+  const approveTxnOwner3Resp = await safeSdkOwner3.approveTransactionHash(
+    safeTxnHashOwner3
+  );
+  await approveTxnOwner3Resp.transactionResponse?.wait();
+
+  console.log("Owner1 Exec Transaction...");
+  const execTxnOwner1Resp = await safeSdkOwner1.executeTransaction(
+    safeTransaction
+  );
+  await execTxnOwner1Resp.transactionResponse?.wait();
+
+  const safeBalanceAfterTxn = await safeSdkOwner1.getBalance();
+  console.log(
+    `Balance of the safe is ${ethers.utils.formatEther(safeBalanceAfterTxn)} ETH`
+  );
 }
 
 main()
