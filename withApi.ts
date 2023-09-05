@@ -8,7 +8,8 @@ import Safe, {
 import * as dotenv from "dotenv";
 import { SafeTransactionDataPartial } from "@safe-global/safe-core-sdk-types";
 import { HttpMethod, sendRequest } from "./apiUtil";
-import { getTxnResp, proposeTxnResp } from "./apiRespTypes";
+import { apiResp  } from "./apiRespTypes";
+import * as ethUtils from "./ethUtils";
 
 dotenv.config();
 
@@ -20,36 +21,17 @@ async function main() {
   const owner2 = new ethers.Wallet(process.env.PRIV_KEY2!, provider);
   const owner3 = new ethers.Wallet(process.env.PRIV_KEY3!, provider);
 
+  const ethAdapterOwner2 = ethUtils.getEthAdapter(owner2);
+  const ethAdapterOwner3 = ethUtils.getEthAdapter(owner3);
   const ethAdapterOwner1 = new EthersAdapter({
     ethers,
     signerOrProvider: owner1,
   });
 
-  const ethAdapterOwner2 = new EthersAdapter({
-    ethers,
-    signerOrProvider: owner2,
-  });
-
-  const ethAdapterOwner3 = new EthersAdapter({
-    ethers,
-    signerOrProvider: owner3,
-  });
-
-  const chainId = await ethAdapterOwner1.getChainId();
-  const contractNetworks: ContractNetworksConfig = {
-    [chainId]: {
-      safeMasterCopyAddress: "0xd9Db270c1B5E3Bd161E8c8503c55cEABeE709552",
-      safeProxyFactoryAddress: "0xa6B71E26C5e0845f74c812102Ca7114b6a896AB2",
-      multiSendAddress: "0xA238CBeb142c10Ef7Ad8442C6D1f9E89e07e7761",
-      multiSendCallOnlyAddress: "0x40A2aCCbd92BCA938b02010E17A5b8929b49130D",
-      fallbackHandlerAddress: "0xf48f2B2d2a534e402487b3ee7C18c33Aec0Fe5e4",
-      signMessageLibAddress: "0xA65387F16B013cf2Af4605Ad8aA5ec25a2cbA3a2",
-      createCallAddress: "0x7cbB62EaA69F79e6873cD1ecB2392971036cFAa4",
-      simulateTxAccessorAddress: "0x59AD6735bCd8152B84860Cb256dD9e96b85F69Da",
-    },
-  };
-
   console.log("Creating safeFactory...");
+  const chainId = await ethAdapterOwner1.getChainId();
+  const contractNetworks = ethUtils.getContractNetworks(chainId);
+  console.log({ contractNetworks });
   const safeFactory = await SafeFactory.create({
     ethAdapter: ethAdapterOwner1,
     contractNetworks,
@@ -68,7 +50,7 @@ async function main() {
   const safeSdkOwner1 = await safeFactory.deploySafe({ safeAccountConfig });
   const safeAddress = await safeSdkOwner1.getAddress();
 
-  // const safeAddress = "0xf02CFBC2a82BA2E3145faBccdDe1aa5D3c9A5b7F";
+  // const safeAddress = "0xd4DF7080DcC3a1422A0CD1C9DB43a7Cc7CF1BE0C";
   // const safeSdkOwner1 = await Safe.create({
   //   ethAdapter: ethAdapterOwner2,
   //   safeAddress,
@@ -94,34 +76,47 @@ async function main() {
   console.log("Owner1 Creating Transaction...");
   const amountOut = ethers.utils.parseEther("0.005").toString();
 
-  const safeTransactionData: SafeTransactionDataPartial = {
+  const initTxnData: SafeTransactionDataPartial = {
     to: await owner3.getAddress(),
     value: amountOut,
     data: "0x",
   };
 
   const safeTransaction = await safeSdkOwner1.createTransaction({
-    safeTransactionData,
+    safeTransactionData: initTxnData,
   });
+  console.log({ txnData: safeTransaction.data });
 
-  const respOwner1: proposeTxnResp = await sendRequest({
+  const respOwner1: apiResp = await sendRequest({
     url: `${apiUrl}/propose-txn`,
     method: HttpMethod.Post,
     body: {
       safeAddress,
-      txnData: safeTransactionData,
+      txnData: safeTransaction.data,
     },
   });
+  console.log({ resp: respOwner1.txn });
+  const safeTxnHash = respOwner1.txn.txnHash;
 
-  console.log("Owner1 Approve Transaction...");
-  const safeTxnHash = respOwner1.txnHash;
-  const approveTxnOwner1Resp = await safeSdkOwner1.approveTransactionHash(
-    safeTxnHash
-  );
-  await approveTxnOwner1Resp.transactionResponse?.wait();
+  console.log("Owner1 Sign Transaction Off-chain...");
+  const signOwner1 = await ethAdapterOwner1.signMessage(safeTxnHash);
+  console.log({ signOwner1 });
 
-  console.log("Owner2 Approve Transaction...");
-  const respOwner2: getTxnResp = await sendRequest({
+  console.log("Owner1 Call add-sign API...");
+  const respAddSignOwner1: apiResp = await sendRequest({
+    url: `${apiUrl}/add-sign`,
+    method: HttpMethod.Post,
+    body: {
+      safeAddress,
+      txnData: safeTransaction.data,
+      ownerAddress: owner1.address,
+      sign: signOwner1,
+    },
+  });
+  console.log({ resp: respAddSignOwner1.txn });
+
+  console.log("Owner2 Call get-txn API...");
+  const respOwner2: apiResp = await sendRequest({
     url: `${apiUrl}/get-txn`,
     method: HttpMethod.Get,
     query: {
@@ -129,20 +124,27 @@ async function main() {
       txnHash: safeTxnHash,
     },
   });
+  console.log({ resp: respOwner2.txn });
 
-  const safeSdkOwner2 = await Safe.create({
-    ethAdapter: ethAdapterOwner2,
-    safeAddress,
-    contractNetworks,
+  console.log("Owner2 Sign Transaction Off-chain...");
+  const signOwner2 = await ethAdapterOwner2.signMessage(safeTxnHash);
+  console.log({ signOwner2 });
+
+  console.log("Owner2 Call add-sign API...");
+  const respAddSignOwner2: apiResp = await sendRequest({
+    url: `${apiUrl}/add-sign`,
+    method: HttpMethod.Post,
+    body: {
+      safeAddress,
+      txnData: safeTransaction.data,
+      ownerAddress: owner2.address,
+      sign: signOwner2,
+    },
   });
+  console.log({ resp: respAddSignOwner2.txn });
 
-  const approveTxnOwner2Resp = await safeSdkOwner2.approveTransactionHash(
-    respOwner2.txnHash
-  );
-  await approveTxnOwner2Resp.transactionResponse?.wait();
-
-  console.log("Owner3 Approve Transaction...");
-  const respOwner3: getTxnResp = await sendRequest({
+  console.log("Owner3 Call get-txn API...");
+  const respOwner3: apiResp = await sendRequest({
     url: `${apiUrl}/get-txn`,
     method: HttpMethod.Get,
     query: {
@@ -150,6 +152,7 @@ async function main() {
       txnHash: safeTxnHash,
     },
   });
+  console.log({ resp: respOwner3.txn });
 
   const safeSdkOwner3 = await Safe.create({
     ethAdapter: ethAdapterOwner3,
@@ -157,20 +160,40 @@ async function main() {
     contractNetworks,
   });
 
-  const approveTxnOwner3Resp = await safeSdkOwner3.approveTransactionHash(
-    respOwner3.txnHash
-  );
-  await approveTxnOwner3Resp.transactionResponse?.wait();
+  console.log("Owner3 Sign Transaction Off-chain...");
+  const signOwner3 = await ethAdapterOwner3.signMessage(safeTxnHash);
+  console.log({ signOwner3 });
 
-  console.log("Owner3 Exec Transaction...");
-  const safeTransactionOwner3 = await safeSdkOwner3.createTransaction({
-    safeTransactionData: respOwner3.txnData,
+  console.log("Owner3 Call add-sign API...");
+  const respAddSignOwner3: apiResp = await sendRequest({
+    url: `${apiUrl}/add-sign`,
+    method: HttpMethod.Post,
+    body: {
+      safeAddress,
+      txnData: safeTransaction.data,
+      ownerAddress: owner2.address,
+      sign: signOwner3,
+    },
   });
+  console.log({ resp: respAddSignOwner3.txn });
 
-  const execTxnOwner1Resp = await safeSdkOwner1.executeTransaction(
-    safeTransactionOwner3
-  );
-  await execTxnOwner1Resp.transactionResponse?.wait();
+  console.log("Owner3 Call checkzicute API...");
+  const respCheckzicuteOwner3: apiResp = await sendRequest({
+    url: `${apiUrl}/checkzicute`,
+    method: HttpMethod.Get,
+    query: {
+      safeAddress,
+      txnHash: safeTxnHash,
+      executor: owner3.address
+    },
+  });
+  console.log({ resp: respCheckzicuteOwner3.txn });
+
+  // This we will replace with checkNSignatures and execute flow i.e. checkzicute
+  // const execTxnOwner1Resp = await safeSdkOwner1.executeTransaction(
+  //   safeTransactionOwner3
+  // );
+  // await execTxnOwner1Resp.transactionResponse?.wait();
 
   const safeBalanceAfterTxn = await safeSdkOwner1.getBalance();
   console.log(
