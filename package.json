@@ -1,6 +1,7 @@
 {
   "scripts": {
     "withApi": "ts-node withApi",
+    "offChain": "ts-node offChain",
     "index": "ts-node index"
   },
   "dependencies": {

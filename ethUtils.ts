@@ -1,11 +1,14 @@
 import Safe, {
   ContractNetworksConfig,
+  EthSafeSignature,
   EthersAdapter,
 } from "@safe-global/protocol-kit";
 import {
+  SafeTransaction,
   SafeTransactionDataPartial,
 } from "@safe-global/safe-core-sdk-types";
 import { Signer, ethers } from "ethers";
+import { apiRespType, signatureType } from "./Types";
 
 export function getEthAdapter(signer: Signer): EthersAdapter {
   const ethAdapter = new EthersAdapter({
@@ -55,9 +58,26 @@ export async function getTxnHash(
   return safeSdk.getTransactionHash(txn);
 }
 
+export async function getExecTxn(
+  ethAdapter: EthersAdapter,
+  safeAddress: string,
+  resp: apiRespType
+): Promise<SafeTransaction> {
+  const safeSdk = await getSafeSdk(safeAddress, ethAdapter);
+  const txn = await safeSdk.createTransaction({
+    safeTransactionData: resp.txn.txnData,
+  });
+  resp.txn.signatures.map((sign) => {
+    const ethSign = new EthSafeSignature(sign.signer, sign.signature);
+    txn.addSignature(ethSign);
+  });
+  return txn;
+}
+
 module.exports = {
   getEthAdapter,
   getSafeSdk,
   getContractNetworks,
   getTxnHash,
+  getExecTxn,
 };
