@@ -16,5 +16,5 @@ export interface apiRespType {
 
 export interface signatureType {
   signer: string;
-  signature: string;
+  data: string;
 }

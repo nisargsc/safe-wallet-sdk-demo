@@ -68,7 +68,7 @@ export async function getExecTxn(
     safeTransactionData: resp.txn.txnData,
   });
   resp.txn.signatures.map((sign) => {
-    const ethSign = new EthSafeSignature(sign.signer, sign.signature);
+    const ethSign = new EthSafeSignature(sign.signer, sign.data);
     txn.addSignature(ethSign);
   });
   return txn;

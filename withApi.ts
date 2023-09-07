@@ -1,5 +1,9 @@
 import { ethers } from "ethers";
-import Safe, { EthersAdapter, SafeAccountConfig, SafeFactory } from "@safe-global/protocol-kit";
+import Safe, {
+  EthersAdapter,
+  SafeAccountConfig,
+  SafeFactory,
+} from "@safe-global/protocol-kit";
 import * as dotenv from "dotenv";
 import {
   SafeTransaction,
@@ -54,6 +58,16 @@ async function main() {
     safeAddress,
     contractNetworks,
   });
+  const safeSdkOwner2 = await Safe.create({
+    ethAdapter: ethAdapterOwner2,
+    safeAddress,
+    contractNetworks,
+  });
+  const safeSdkOwner3 = await Safe.create({
+    ethAdapter: ethAdapterOwner3,
+    safeAddress,
+    contractNetworks,
+  });
 
   console.log("Safe Address:", safeAddress);
 
@@ -98,7 +112,7 @@ async function main() {
   const safeTxnHash = respOwner1.txn.txnHash;
 
   console.log("Owner1 Sign Transaction Off-chain...");
-  const signOwner1 = await ethAdapterOwner1.signMessage(safeTxnHash);
+  const signOwner1 = await safeSdkOwner1.signTransactionHash(safeTxnHash);
   console.log({ signOwner1 });
 
   console.log("Owner1 Call add-sign API...");
@@ -108,7 +122,6 @@ async function main() {
     body: {
       safeAddress,
       txnData: safeTransaction.data,
-      ownerAddress: owner1.address,
       sign: signOwner1,
     },
   });
@@ -127,7 +140,7 @@ async function main() {
   console.log({ resp: respOwner2.txn });
 
   console.log("Owner2 Sign Transaction Off-chain...");
-  const signOwner2 = await ethAdapterOwner2.signMessage(safeTxnHash);
+  const signOwner2 = await safeSdkOwner2.signTransactionHash(safeTxnHash);
   console.log({ signOwner2 });
 
   console.log("Owner2 Call add-sign API...");
@@ -137,7 +150,6 @@ async function main() {
     body: {
       safeAddress,
       txnData: safeTransaction.data,
-      ownerAddress: owner2.address,
       sign: signOwner2,
     },
   });
@@ -155,14 +167,8 @@ async function main() {
   });
   console.log({ resp: respOwner3.txn });
 
-  const safeSdkOwner3 = await Safe.create({
-    ethAdapter: ethAdapterOwner3,
-    safeAddress,
-    contractNetworks,
-  });
-
   console.log("Owner3 Sign Transaction Off-chain...");
-  const signOwner3 = await ethAdapterOwner3.signMessage(safeTxnHash);
+  const signOwner3 = await safeSdkOwner3.signTransactionHash(safeTxnHash);
   console.log({ signOwner3 });
 
   console.log("Owner3 Call add-sign API...");
@@ -172,7 +178,6 @@ async function main() {
     body: {
       safeAddress,
       txnData: safeTransaction.data,
-      ownerAddress: owner2.address,
       sign: signOwner3,
     },
   });
