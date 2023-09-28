@@ -1,4 +1,4 @@
-import { ethers } from "ethers";
+import { Wallet, ethers } from "ethers";
 import Safe, {
   EthersAdapter,
   SafeAccountConfig,
@@ -16,8 +16,10 @@ import { apiRespType } from "./Types";
 dotenv.config();
 
 async function main() {
+  const nodeId = process.env.NODE_ID!;
   const apiUrl = process.env.API_URL!;
-  const provider = new ethers.providers.JsonRpcProvider(process.env.RPC_URL!);
+  const rpcUrl = `${apiUrl}/node/${nodeId}`
+  const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
 
   const owner1 = new ethers.Wallet(process.env.PRIV_KEY1!, provider);
   const owner2 = new ethers.Wallet(process.env.PRIV_KEY2!, provider);
@@ -29,6 +31,7 @@ async function main() {
     ethers,
     signerOrProvider: owner1,
   });
+
 
   console.log("Creating safeFactory...");
   const chainId = await ethAdapterOwner1.getChainId();
@@ -101,9 +104,10 @@ async function main() {
   console.log({ txnData: safeTransaction.data });
 
   const respOwner1: apiRespType = await sendRequest({
-    url: `${apiUrl}/propose-txn`,
+    url: `${apiUrl}/plugin/safe/proposeTransaction`,
     method: HttpMethod.Post,
     body: {
+      nodeId,
       safeAddress,
       txnData: safeTransaction.data,
     },
@@ -117,9 +121,10 @@ async function main() {
 
   console.log("Owner1 Call add-sign API...");
   const respAddSignOwner1: apiRespType = await sendRequest({
-    url: `${apiUrl}/add-sign`,
+    url: `${apiUrl}/plugin/safe/addSignature`,
     method: HttpMethod.Post,
     body: {
+      nodeId,
       safeAddress,
       txnData: safeTransaction.data,
       sign: signOwner1,
@@ -130,9 +135,10 @@ async function main() {
   console.log("--------owner2---------");
   console.log("Owner2 Call get-txn API...");
   const respOwner2: apiRespType = await sendRequest({
-    url: `${apiUrl}/get-txn`,
+    url: `${apiUrl}/plugin/safe/getTransaction`,
     method: HttpMethod.Get,
     query: {
+      nodeId,
       safeAddress,
       txnHash: safeTxnHash,
     },
@@ -145,9 +151,10 @@ async function main() {
 
   console.log("Owner2 Call add-sign API...");
   const respAddSignOwner2: apiRespType = await sendRequest({
-    url: `${apiUrl}/add-sign`,
+    url: `${apiUrl}/plugin/safe/addSignature`,
     method: HttpMethod.Post,
     body: {
+      nodeId,
       safeAddress,
       txnData: safeTransaction.data,
       sign: signOwner2,
@@ -158,9 +165,10 @@ async function main() {
   console.log("--------owner3---------");
   console.log("Owner3 Call get-txn API...");
   const respOwner3: apiRespType = await sendRequest({
-    url: `${apiUrl}/get-txn`,
+    url: `${apiUrl}/plugin/safe/getTransaction`,
     method: HttpMethod.Get,
     query: {
+      nodeId,
       safeAddress,
       txnHash: safeTxnHash,
     },
@@ -173,9 +181,10 @@ async function main() {
 
   console.log("Owner3 Call add-sign API...");
   const respAddSignOwner3: apiRespType = await sendRequest({
-    url: `${apiUrl}/add-sign`,
+    url: `${apiUrl}/plugin/safe/addSignature`,
     method: HttpMethod.Post,
     body: {
+      nodeId,
       safeAddress,
       txnData: safeTransaction.data,
       sign: signOwner3,
@@ -186,9 +195,10 @@ async function main() {
   console.log("--------execute now---------");
   console.log("Owner1 Call get-txn API...");
   const getTxnRespOwner1: apiRespType = await sendRequest({
-    url: `${apiUrl}/get-txn`,
+    url: `${apiUrl}/plugin/safe/getTransaction`,
     method: HttpMethod.Get,
     query: {
+      nodeId,
       safeAddress,
       txnHash: safeTxnHash,
     },

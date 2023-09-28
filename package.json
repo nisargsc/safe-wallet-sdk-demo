@@ -2,6 +2,7 @@
   "scripts": {
     "withApi": "ts-node withApi",
     "offChain": "ts-node offChain",
+    "forked": "ts-node forked",
     "index": "ts-node index"
   },
   "dependencies": {
